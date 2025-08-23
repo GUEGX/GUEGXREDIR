@@ -52,7 +52,7 @@ exports.handler = async (event, context) => {
       createdAt: new Date().toISOString(),
       clickCount: 0,
       userId: userId,
-      slug // <---- IMPORTANT: Add the slug as a field
+      slug // IMPORTANT!
     };
 
     await linkDocRef.set(newLink);
