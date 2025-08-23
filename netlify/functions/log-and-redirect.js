@@ -20,6 +20,9 @@ exports.handler = async (event, context) => {
 
   try {
     const { slug, browserData } = JSON.parse(event.body);
+    // === LOGGING LINE ADDED HERE ===
+    console.log('log-and-redirect input:', { slug, browserData });
+
     const ip = event.headers['x-nf-client-connection-ip'] || 'unknown';
     const country = event.headers['x-country'] || 'unknown';
 
