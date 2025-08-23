@@ -3,7 +3,6 @@
 exports.handler = async (event, context) => {
   const slug = event.path.split("/").pop();
   if (!slug) {
-    // If no slug is provided, redirect to main page or 404
     return {
       statusCode: 302,
       headers: { Location: "/" }
@@ -20,38 +19,123 @@ exports.handler = async (event, context) => {
 </head>
 <body>
   <script>
-    const browserData = {
-      userAgent: navigator.userAgent,
-      referrer: document.referrer,
-      language: navigator.language,
-      platform: navigator.platform,
-      cookiesEnabled: navigator.cookieEnabled,
-      screen: {
-        width: window.screen.width,
-        height: window.screen.height
-      },
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
+    // --- Comprehensive Data Collection ---
+    // We wrap everything in a try/catch to ensure the redirect happens
+    // even if some browser data APIs are unavailable.
+    try {
+      // Helper function to safely get performance timings
+      const getPerformanceMetrics = () => {
+        if (!window.performance || !window.performance.timing) {
+          return { error: "Performance API not supported." };
+        }
+        const t = window.performance.timing;
+        const navigationStart = t.navigationStart;
+        if (navigationStart === 0) {
+            return { error: "Performance timings not available yet." };
+        }
+        // Calculate durations relative to the start of navigation
+        const metrics = {
+          latencyMs: t.responseStart - t.requestStart,
+          downloadMs: t.responseEnd - t.responseStart,
+          pageLoadMs: t.loadEventEnd - navigationStart,
+          dnsLookupMs: t.domainLookupEnd - t.domainLookupStart,
+          tcpConnectMs: t.connectEnd - t.connectStart,
+          domProcessingMs: t.domComplete - t.domLoading,
+        };
+        return metrics;
+      };
 
-    fetch('/.netlify/functions/log-and-redirect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug: "${slug}",
-        browserData
+      // Helper to get plugin and mimeType names safely
+      const getNavigatorList = (list) => {
+        if (!list || list.length === 0) return [];
+        const names = [];
+        for (let i = 0; i < list.length; i++) {
+          names.push(list[i].name || list[i].type);
+        }
+        return names;
+      };
+
+      const browserData = {
+        // --- Basic Info (from previous version) ---
+        userAgent: navigator.userAgent || 'unknown',
+        referrer: document.referrer || 'direct',
+        language: navigator.language || 'unknown',
+        platform: navigator.platform || 'unknown',
+        cookiesEnabled: navigator.cookieEnabled,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
+
+        // --- Screen & Viewport Details ---
+        screen: {
+          width: window.screen.width,
+          height: window.screen.height,
+          colorDepth: window.screen.colorDepth,
+          pixelDepth: window.screen.pixelDepth
+        },
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        devicePixelRatio: window.devicePixelRatio || 1,
+        
+        // --- Hardware & Connection ---
+        connection: navigator.connection ? {
+          effectiveType: navigator.connection.effectiveType,
+          rtt: navigator.connection.rtt,
+          downlink: navigator.connection.downlink
+        } : 'unknown',
+        hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+        deviceMemory: navigator.deviceMemory || 'unknown',
+
+        // --- Browser Capabilities ---
+        browserVendor: navigator.vendor || 'unknown',
+        isOnline: navigator.onLine,
+        doNotTrack: navigator.doNotTrack || 'unknown',
+        touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+        
+        // --- Performance Metrics ---
+        performance: getPerformanceMetrics(),
+
+        // --- Plugins & MIME Types (can be long) ---
+        plugins: getNavigatorList(navigator.plugins),
+        mimeTypes: getNavigatorList(navigator.mimeTypes),
+
+        // --- Session Info ---
+        historyLength: window.history.length
+      };
+
+      // Send the collected data to the server
+      fetch('/.netlify/functions/log-and-redirect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: "${slug}",
+          browserData
+        })
       })
-    })
-    .then(async (res) => {
-      const data = await res.json();
-      if (data.longUrl) {
-        window.location.replace(data.longUrl);
-      } else {
-        document.body.innerText = "Redirect failed: " + (data.error || "unknown error");
-      }
-    })
-    .catch(() => {
-      document.body.innerText = "Redirect failed.";
-    });
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.longUrl) {
+          window.location.replace(data.longUrl);
+        } else {
+          document.body.innerText = "Redirect failed: " + (data.error || "unknown error");
+        }
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        document.body.innerText = "Redirect failed due to a network error.";
+      });
+
+    } catch (e) {
+      console.error("Error collecting browser data:", e);
+      // Failsafe: If data collection fails, still attempt a basic redirect
+      fetch('/.netlify/functions/log-and-redirect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: "${slug}", browserData: { error: 'Data collection failed' } })
+      })
+      .then(res => res.json())
+      .then(data => { if (data.longUrl) window.location.replace(data.longUrl); });
+    }
   </script>
   <noscript>Please enable JavaScript to be redirected.</noscript>
   <div>Please wait while we redirect you...</div>
