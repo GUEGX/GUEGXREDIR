@@ -1,22 +1,15 @@
 // netlify/functions/redirect.js
 
-// This is the first step in the redirect process.
-// Its only job is to serve a minimal HTML page containing a script.
-// This script will collect all the browser data and then call the 'log-and-redirect' function.
-
 exports.handler = async (event, context) => {
   const slug = event.path.split("/").pop();
-
   if (!slug) {
-    // If no slug is provided, redirect to the main app page or a 404.
+    // If no slug is provided, redirect to main page or 404
     return {
       statusCode: 302,
       headers: { Location: "/" }
     };
   }
 
-  // This is the HTML page that will be sent to the user's browser.
-  // It's designed to be as small and fast as possible.
   const trackerHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -27,7 +20,6 @@ exports.handler = async (event, context) => {
 </head>
 <body>
   <script>
-    // Collect basic browser data
     const browserData = {
       userAgent: navigator.userAgent,
       referrer: document.referrer,
@@ -48,14 +40,16 @@ exports.handler = async (event, context) => {
         slug: "${slug}",
         browserData
       })
-    }).then(async (res) => {
+    })
+    .then(async (res) => {
       const data = await res.json();
       if (data.longUrl) {
         window.location.replace(data.longUrl);
       } else {
         document.body.innerText = "Redirect failed: " + (data.error || "unknown error");
       }
-    }).catch(() => {
+    })
+    .catch(() => {
       document.body.innerText = "Redirect failed.";
     });
   </script>
