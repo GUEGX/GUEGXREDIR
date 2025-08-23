@@ -1,8 +1,12 @@
+// netlify/functions/create-link.js
+
 const admin = require('firebase-admin');
 const { nanoid } = require('nanoid');
 
-// Initialize Firebase Admin SDK only once
+// Parse service account from Netlify env var
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+// Initialize Firebase Admin app only once!
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -19,7 +23,7 @@ exports.handler = async (event, context) => {
   try {
     const { longUrl, customSlug, userId, appId } = JSON.parse(event.body);
 
-    // Validation
+    // --- Validation ---
     if (!longUrl || !userId || !appId) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields.' }) };
     }
@@ -33,7 +37,10 @@ exports.handler = async (event, context) => {
 
     // Validate custom slug format if provided
     if (customSlug && !/^[a-zA-Z0-9-]{3,}$/.test(customSlug)) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Slug must be at least 3 characters and contain only letters, numbers, and hyphens.' }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Slug must be at least 3 characters and contain only letters, numbers, and hyphens.' })
+      };
     }
 
     const slug = customSlug || nanoid(6);
@@ -46,15 +53,13 @@ exports.handler = async (event, context) => {
       return { statusCode: 409, body: JSON.stringify({ error: 'This custom slug is already in use. Please choose another.' }) };
     }
 
-    // Create Link in Firestore (include slug field)
+    // --- Create Link in Firestore ---
     const newLink = {
       longUrl,
       createdAt: new Date().toISOString(),
       clickCount: 0,
-      userId: userId,
-      slug // <---- IMPORTANT: Add the slug as a field
+      userId: userId
     };
-
     await linkDocRef.set(newLink);
 
     return {
