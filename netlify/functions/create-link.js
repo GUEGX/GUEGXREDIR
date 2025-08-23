@@ -1,24 +1,18 @@
 // netlify/functions/create-link.js
 
-// This function is responsible for creating a new short link.
-// It validates the incoming data (long URL, custom slug),
-// generates a random slug if one isn't provided, and then
-// saves the link data to the user's private collection in Firestore.
-
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const admin = require('firebase-admin');
 const { nanoid } = require('nanoid');
 
-// Initialize Firebase Admin SDK
-// IMPORTANT: You need to add your Firebase service account credentials to your Netlify environment variables.
-// Name the environment variable 'FIREBASE_SERVICE_ACCOUNT'.
+// Parse service account from Netlify env var
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-initializeApp({
-  credential: cert(serviceAccount)
-});
-
-const db = getFirestore();
+// Initialize Firebase Admin app only once!
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+const db = admin.firestore();
 
 exports.handler = async (event, context) => {
   // Only allow POST requests
@@ -40,10 +34,13 @@ exports.handler = async (event, context) => {
     } catch (error) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid URL format.' }) };
     }
-    
+
     // Validate custom slug format if provided
     if (customSlug && !/^[a-zA-Z0-9-]{3,}$/.test(customSlug)) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Slug must be at least 3 characters and contain only letters, numbers, and hyphens.' }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Slug must be at least 3 characters and contain only letters, numbers, and hyphens.' })
+      };
     }
 
     const slug = customSlug || nanoid(6);
@@ -60,10 +57,9 @@ exports.handler = async (event, context) => {
     const newLink = {
       longUrl,
       createdAt: new Date().toISOString(),
-      clickCount: 0, // Initialize click count
+      clickCount: 0,
       userId: userId
     };
-
     await linkDocRef.set(newLink);
 
     return {
