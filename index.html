@@ -144,20 +144,41 @@
             </div>
         </div>
     </div>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <div class="p-6">
+                <h3 id="confirm-title" class="text-lg font-medium text-gray-900">Are you sure?</h3>
+                <div class="mt-2">
+                    <p id="confirm-text" class="text-sm text-gray-500">This action cannot be undone.</p>
+                </div>
+                <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                    <button id="confirm-yes-btn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:col-start-2 sm:text-sm">
+                        Confirm
+                    </button>
+                    <button id="confirm-no-btn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:col-start-1 sm:text-sm">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, deleteDoc, setLogLevel, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, deleteDoc, setLogLevel, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         document.addEventListener('DOMContentLoaded', () => {
             // --- Firebase Configuration and Initialization ---
+            // It's recommended to move these to environment variables for production
             const firebaseConfig = {
                 apiKey: "AIzaSyCc2Em_b5oe1bGtQzcAlhYzqSnlAGfQt-0",
                 authDomain: "guegxredir.firebaseapp.com",
                 projectId: "guegxredir",
-                // ** FIX: Corrected the storageBucket URL format. **
                 storageBucket: "guegxredir.appspot.com",
                 messagingSenderId: "1086770860900",
                 appId: "1:1086770860900:web:929a76665e66a5e36f6071",
@@ -198,6 +219,12 @@
             const linksLoader = document.getElementById('links-loader');
             const userIdSpan = document.getElementById('userId');
             const baseUrlSpan = document.getElementById('base-url');
+            const confirmModal = document.getElementById('confirm-modal');
+            const confirmYesBtn = document.getElementById('confirm-yes-btn');
+            const confirmNoBtn = document.getElementById('confirm-no-btn');
+            const confirmTitle = document.getElementById('confirm-title');
+            const confirmText = document.getElementById('confirm-text');
+
 
             // --- Main Application Logic ---
 
@@ -211,7 +238,7 @@
                     app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
-                    setLogLevel('debug');
+                    // setLogLevel('debug'); // Uncomment for verbose Firestore logs
                     setupAuthListener();
                 } catch (error) {
                     console.error("Firebase initialization failed:", error);
@@ -251,25 +278,31 @@
             async function setupRealtimeListeners() {
                 if (!currentUserId) return;
                 
+                // Listener for user's redirect links
                 const linksCollectionPath = `/artifacts/${appId}/users/${currentUserId}/redirects`;
                 onSnapshot(collection(db, linksCollectionPath), (snapshot) => {
                     linksLoader.classList.add('hidden');
-                    noLinksMsg.classList.toggle('hidden', !snapshot.empty);
                     displayLinks(snapshot.docs);
                 }, (error) => {
                     console.error("Error fetching links:", error);
                     showMessage("Could not load your links.", "error");
                 });
 
+                // Listener for user's logs
                 const logsCollectionPath = `/artifacts/${appId}/users/${currentUserId}/logs`;
-                const logsQuery = query(collection(db, logsCollectionPath), orderBy('timestamp', 'desc'));
+                const logsQuery = query(collection(db, logsCollectionPath)); // Removed orderBy
 
                 if (logsUnsubscribe) logsUnsubscribe(); 
                 
                 logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
                     logsLoader.classList.add('hidden');
-                    noLogsMsg.classList.toggle('hidden', !snapshot.empty);
-                    displayLogs(snapshot.docs);
+                    // Sort logs by timestamp client-side (newest first)
+                    const sortedDocs = snapshot.docs.sort((a, b) => {
+                        const timeA = a.data().timestamp;
+                        const timeB = b.data().timestamp;
+                        return new Date(timeB) - new Date(timeA);
+                    });
+                    displayLogs(sortedDocs);
                 }, (error) => {
                     console.error("Error fetching logs:", error);
                     showMessage("Could not load analytics data.", "error");
@@ -277,21 +310,20 @@
             }
 
             function displayLinks(docs) {
-                const docMap = new Map(docs.map(doc => [doc.id, doc.data()]));
-                const linkItems = linksContainer.querySelectorAll('.link-item');
+                // Clear existing links except for the loader/message
+                linksContainer.innerHTML = '';
+                linksContainer.appendChild(noLinksMsg);
+                linksContainer.appendChild(linksLoader);
+                
+                noLinksMsg.classList.toggle('hidden', docs.length > 0);
 
-                linkItems.forEach(item => {
-                    if (!docMap.has(item.dataset.slug)) item.remove();
-                });
-
-                docMap.forEach((data, slug) => {
-                    let linkItem = linksContainer.querySelector(`.link-item[data-slug="${slug}"]`);
-                    if (!linkItem) {
-                        linkItem = document.createElement('div');
-                        linkItem.className = 'link-item flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm';
-                        linkItem.dataset.slug = slug;
-                        linksContainer.appendChild(linkItem);
-                    }
+                docs.forEach(doc => {
+                    const slug = doc.id;
+                    const data = doc.data();
+                    const linkItem = document.createElement('div');
+                    linkItem.className = 'link-item flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm';
+                    linkItem.dataset.slug = slug;
+                    
                     const shortUrl = `${window.location.origin}/${slug}`;
                     linkItem.innerHTML = `
                         <div class="flex-grow overflow-hidden mr-4">
@@ -300,16 +332,19 @@
                         </div>
                         <div class="flex-shrink-0 flex items-center space-x-2">
                             <span class="text-sm font-medium text-gray-600">${data.clickCount || 0} Clicks</span>
-                            <button class="delete-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition" data-slug="${slug}">
+                            <button class="delete-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition" data-slug="${slug}" data-url="${shortUrl}">
                                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </div>
                     `;
+                    linksContainer.appendChild(linkItem);
                 });
             }
 
             function displayLogs(docs) {
                 logsContainer.innerHTML = '';
+                noLogsMsg.classList.toggle('hidden', docs.length > 0);
+
                 if (docs.length === 0) return;
 
                 docs.forEach(doc => {
@@ -330,7 +365,7 @@
                             </button>
                         </td>
                     `;
-                    tr.querySelector('.view-log-details-btn')._logData = logData;
+                    tr.querySelector('.view-log-details-btn')._logData = logData; // Attach data directly to the element
                     logsContainer.appendChild(tr);
                 });
             }
@@ -365,21 +400,26 @@
                 }
             }
 
-            async function handleDeleteLink(e) {
-                 if (e.target.closest('.delete-btn')) {
-                    const button = e.target.closest('.delete-btn');
-                    const slug = button.dataset.slug;
+            function handleDeleteLink(e) {
+                 const deleteButton = e.target.closest('.delete-btn');
+                 if (deleteButton) {
+                    const slug = deleteButton.dataset.slug;
+                    const url = deleteButton.dataset.url;
                     
-                    if (window.confirm(`Are you sure you want to delete the link for "${slug}"? This action cannot be undone.`)) {
-                        try {
-                            const docPath = `/artifacts/${appId}/users/${currentUserId}/redirects/${slug}`;
-                            await deleteDoc(doc(db, docPath));
-                            showMessage(`Link "${slug}" deleted successfully.`, 'success');
-                        } catch (error) {
-                            console.error("Error deleting link:", error);
-                            showMessage("Failed to delete the link.", "error");
+                    showConfirmationModal(
+                        `Delete Link?`,
+                        `Are you sure you want to delete the link for "${url}"? This cannot be undone.`,
+                        async () => {
+                            try {
+                                const docPath = `/artifacts/${appId}/users/${currentUserId}/redirects/${slug}`;
+                                await deleteDoc(doc(db, docPath));
+                                showMessage(`Link "${slug}" deleted successfully.`, 'success');
+                            } catch (error) {
+                                console.error("Error deleting link:", error);
+                                showMessage("Failed to delete the link.", "error");
+                            }
                         }
-                    }
+                    );
                 }
             }
             
@@ -413,39 +453,68 @@
                     logModal.classList.add('hidden');
                 }, 300);
             }
+            
+            function showConfirmationModal(title, text, onConfirm) {
+                confirmTitle.textContent = title;
+                confirmText.textContent = text;
+                
+                const confirmHandler = () => {
+                    onConfirm();
+                    closeConfirmationModal();
+                };
+
+                const cancelHandler = () => {
+                    closeConfirmationModal();
+                };
+
+                const closeConfirmationModal = () => {
+                    confirmModal.classList.add('hidden');
+                    confirmYesBtn.removeEventListener('click', confirmHandler);
+                    confirmNoBtn.removeEventListener('click', cancelHandler);
+                };
+
+                confirmYesBtn.addEventListener('click', confirmHandler, { once: true });
+                confirmNoBtn.addEventListener('click', cancelHandler, { once: true });
+                
+                confirmModal.classList.remove('hidden');
+            }
 
             function copyToClipboard() {
                 const textToCopy = shortLinkEl.href;
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    copyFeedback.textContent = 'Copied!';
+                // Use the modern clipboard API if available, with a fallback
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        copyFeedback.textContent = 'Copied!';
+                        setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        copyFeedback.textContent = 'Failed to copy!';
+                        setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+                    });
+                } else { // Fallback for older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = textToCopy;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        copyFeedback.textContent = 'Copied!';
+                    } catch (err) {
+                        copyFeedback.textContent = 'Failed to copy!';
+                    }
                     setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
-                } catch (err) {
-                    copyFeedback.textContent = 'Failed to copy!';
-                    setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+                    document.body.removeChild(textArea);
                 }
-                document.body.removeChild(textArea);
             }
 
             function setLoading(isLoading) {
-                if (isLoading) {
-                    submitBtn.disabled = true;
-                    btnText.classList.add('hidden');
-                    btnLoader.classList.remove('hidden');
-                } else {
-                    submitBtn.disabled = false;
-                    btnText.classList.remove('hidden');
-                    btnLoader.classList.add('hidden');
-                }
+                submitBtn.disabled = isLoading;
+                btnText.classList.toggle('hidden', isLoading);
+                btnLoader.classList.toggle('hidden', !isLoading);
             }
 
             function showMessage(message, type = 'info') {
                 messageBox.textContent = message;
-                messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+                messageBox.className = 'mt-4 p-3 text-center text-sm rounded-lg'; // Reset classes
                 if (type === 'error') {
                     messageBox.classList.add('bg-red-100', 'text-red-700');
                 } else if (type === 'success') {
@@ -465,7 +534,7 @@
             
             logsContainer.addEventListener('click', (e) => {
                 const button = e.target.closest('.view-log-details-btn');
-                if (button) {
+                if (button && button._logData) {
                     openLogModal(button._logData);
                 }
             });
