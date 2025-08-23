@@ -147,334 +147,334 @@
 
 
     <script type="module">
-        // Firebase Imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, deleteDoc, setLogLevel, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // ** FIX: The entire script is wrapped in DOMContentLoaded to prevent race conditions. **
+        document.addEventListener('DOMContentLoaded', () => {
+            // Firebase Imports
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+            import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+            import { getFirestore, collection, doc, onSnapshot, deleteDoc, setLogLevel, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Configuration and Initialization ---
-        // ** FIX: The config is now placed directly inside this script to prevent loading issues. **
-        const firebaseConfig = {
-            apiKey: "AIzaSyCc2Em_b5oe1bGtQzcAlhYzqSnlAGfQt-0",
-            authDomain: "guegxredir.firebaseapp.com",
-            projectId: "guegxredir",
-            storageBucket: "guegxredir.firebasestorage.app",
-            messagingSenderId: "1086770860900",
-            appId: "1:1086770860900:web:929a76665e66a5e36f6071",
-            measurementId: "G-4FLDMRLXVN"
-        };
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app, db, auth, currentUserId;
-        let logsUnsubscribe = null; 
-
-        // --- UI Element References ---
-        const showLinksBtn = document.getElementById('show-links-btn');
-        const showAnalyticsBtn = document.getElementById('show-analytics-btn');
-        const linksView = document.getElementById('links-view');
-        const analyticsView = document.getElementById('analytics-view');
-        const logsContainer = document.getElementById('logs-container');
-        const noLogsMsg = document.getElementById('no-logs-msg');
-        const logsLoader = document.getElementById('logs-loader');
-        const logModal = document.getElementById('log-modal');
-        const modalOverlay = document.getElementById('modal-overlay');
-        const closeModalBtn = document.getElementById('close-modal-btn');
-        const logDetailsContent = document.getElementById('log-details-content');
-        const createLinkForm = document.getElementById('create-link-form');
-        const longUrlInput = document.getElementById('longUrl');
-        const customSlugInput = document.getElementById('customSlug');
-        const submitBtn = document.getElementById('submit-btn');
-        const btnText = document.getElementById('btn-text');
-        const btnLoader = document.getElementById('btn-loader');
-        const resultSection = document.getElementById('result-section');
-        const shortLinkEl = document.getElementById('short-link');
-        const copyBtn = document.getElementById('copy-btn');
-        const copyFeedback = document.getElementById('copy-feedback');
-        const messageBox = document.getElementById('message-box');
-        const linksContainer = document.getElementById('links-container');
-        const noLinksMsg = document.getElementById('no-links-msg');
-        const linksLoader = document.getElementById('links-loader');
-        const userIdSpan = document.getElementById('userId');
-        const baseUrlSpan = document.getElementById('base-url');
-
-        // --- Main Application Logic ---
-
-        async function initializeFirebase() {
-            if (!firebaseConfig.apiKey) {
-                console.error("Firebase config is missing.");
-                showMessage("Configuration error. App cannot start.", "error");
-                return;
-            }
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('debug');
-                setupAuthListener();
-            } catch (error) {
-                console.error("Firebase initialization failed:", error);
-                showMessage("Failed to initialize the application.", "error");
-            }
-        }
-
-        function setupAuthListener() {
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    currentUserId = user.uid;
-                    userIdSpan.textContent = currentUserId;
-                    console.log("User is signed in with UID:", currentUserId);
-                    await setupRealtimeListeners();
-                } else {
-                    console.log("User is not signed in. Attempting to sign in.");
-                    await signIn();
-                }
-            });
-        }
-        
-        async function signIn() {
-             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    console.log("Signed in with custom token.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Signed in anonymously.");
-                }
-            } catch (error) {
-                console.error("Authentication failed:", error);
-                showMessage(error.message, "error");
-            }
-        }
-
-        async function setupRealtimeListeners() {
-            if (!currentUserId) return;
+            // --- Firebase Configuration and Initialization ---
+            const firebaseConfig = {
+                apiKey: "AIzaSyCc2Em_b5oe1bGtQzcAlhYzqSnlAGfQt-0",
+                authDomain: "guegxredir.firebaseapp.com",
+                projectId: "guegxredir",
+                storageBucket: "guegxredir.firebasestorage.app",
+                messagingSenderId: "1086770860900",
+                appId: "1:1086770860900:web:929a76665e66a5e36f6071",
+                measurementId: "G-4FLDMRLXVN"
+            };
             
-            const linksCollectionPath = `/artifacts/${appId}/users/${currentUserId}/redirects`;
-            onSnapshot(collection(db, linksCollectionPath), (snapshot) => {
-                linksLoader.classList.add('hidden');
-                noLinksMsg.classList.toggle('hidden', !snapshot.empty);
-                displayLinks(snapshot.docs);
-            }, (error) => {
-                console.error("Error fetching links:", error);
-                showMessage("Could not load your links.", "error");
-            });
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-            const logsCollectionPath = `/artifacts/${appId}/users/${currentUserId}/logs`;
-            const logsQuery = query(collection(db, logsCollectionPath), orderBy('timestamp', 'desc'));
+            let app, db, auth, currentUserId;
+            let logsUnsubscribe = null; 
 
-            if (logsUnsubscribe) logsUnsubscribe(); 
-            
-            logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
-                logsLoader.classList.add('hidden');
-                noLogsMsg.classList.toggle('hidden', !snapshot.empty);
-                displayLogs(snapshot.docs);
-            }, (error) => {
-                console.error("Error fetching logs:", error);
-                showMessage("Could not load analytics data.", "error");
-            });
-        }
+            // --- UI Element References ---
+            const showLinksBtn = document.getElementById('show-links-btn');
+            const showAnalyticsBtn = document.getElementById('show-analytics-btn');
+            const linksView = document.getElementById('links-view');
+            const analyticsView = document.getElementById('analytics-view');
+            const logsContainer = document.getElementById('logs-container');
+            const noLogsMsg = document.getElementById('no-logs-msg');
+            const logsLoader = document.getElementById('logs-loader');
+            const logModal = document.getElementById('log-modal');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const logDetailsContent = document.getElementById('log-details-content');
+            const createLinkForm = document.getElementById('create-link-form');
+            const longUrlInput = document.getElementById('longUrl');
+            const customSlugInput = document.getElementById('customSlug');
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnLoader = document.getElementById('btn-loader');
+            const resultSection = document.getElementById('result-section');
+            const shortLinkEl = document.getElementById('short-link');
+            const copyBtn = document.getElementById('copy-btn');
+            const copyFeedback = document.getElementById('copy-feedback');
+            const messageBox = document.getElementById('message-box');
+            const linksContainer = document.getElementById('links-container');
+            const noLinksMsg = document.getElementById('no-links-msg');
+            const linksLoader = document.getElementById('links-loader');
+            const userIdSpan = document.getElementById('userId');
+            const baseUrlSpan = document.getElementById('base-url');
 
-        function displayLinks(docs) {
-            const docMap = new Map(docs.map(doc => [doc.id, doc.data()]));
-            const linkItems = linksContainer.querySelectorAll('.link-item');
+            // --- Main Application Logic ---
 
-            linkItems.forEach(item => {
-                if (!docMap.has(item.dataset.slug)) item.remove();
-            });
-
-            docMap.forEach((data, slug) => {
-                let linkItem = linksContainer.querySelector(`.link-item[data-slug="${slug}"]`);
-                if (!linkItem) {
-                    linkItem = document.createElement('div');
-                    linkItem.className = 'link-item flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm';
-                    linkItem.dataset.slug = slug;
-                    linksContainer.appendChild(linkItem);
+            async function initializeFirebase() {
+                if (!firebaseConfig.apiKey) {
+                    console.error("Firebase config is missing.");
+                    showMessage("Configuration error. App cannot start.", "error");
+                    return;
                 }
-                const shortUrl = `${window.location.origin}/${slug}`;
-                linkItem.innerHTML = `
-                    <div class="flex-grow overflow-hidden mr-4">
-                        <a href="${shortUrl}" target="_blank" class="font-semibold text-indigo-700 truncate hover:underline">${shortUrl}</a>
-                        <p class="text-sm text-gray-500 truncate" title="${data.longUrl}">${data.longUrl}</p>
-                    </div>
-                    <div class="flex-shrink-0 flex items-center space-x-2">
-                        <span class="text-sm font-medium text-gray-600">${data.clickCount || 0} Clicks</span>
-                        <button class="delete-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition" data-slug="${slug}">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                    </div>
-                `;
-            });
-        }
+                try {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    setLogLevel('debug');
+                    setupAuthListener();
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error);
+                    showMessage("Failed to initialize the application.", "error");
+                }
+            }
 
-        function displayLogs(docs) {
-            logsContainer.innerHTML = '';
-            if (docs.length === 0) return;
-
-            docs.forEach(doc => {
-                const logData = doc.data();
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50";
-                
-                const formattedDate = new Date(logData.timestamp).toLocaleString();
-
-                tr.innerHTML = `
-                    <td>${formattedDate}</td>
-                    <td>/${logData.slug}</td>
-                    <td>${logData.geolocation?.country || 'N/A'}</td>
-                    <td class="truncate max-w-xs">${logData.referrer || 'Direct'}</td>
-                    <td>
-                        <button class="view-log-details-btn text-indigo-600 hover:text-indigo-900 font-medium" data-log-id="${doc.id}">
-                            View
-                        </button>
-                    </td>
-                `;
-                tr.querySelector('.view-log-details-btn')._logData = logData;
-                logsContainer.appendChild(tr);
-            });
-        }
-
-        async function handleCreateLink(e) {
-            e.preventDefault();
-            setLoading(true);
-
-            const longUrl = longUrlInput.value;
-            const customSlug = customSlugInput.value.trim();
-
-            try {
-                const response = await fetch('/.netlify/functions/create-link', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ longUrl, customSlug, userId: currentUserId, appId }),
+            function setupAuthListener() {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        userIdSpan.textContent = currentUserId;
+                        console.log("User is signed in with UID:", currentUserId);
+                        await setupRealtimeListeners();
+                    } else {
+                        console.log("User is not signed in. Attempting to sign in.");
+                        await signIn();
+                    }
                 });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'An error occurred.');
-
-                const fullShortUrl = `${window.location.origin}/${data.slug}`;
-                shortLinkEl.href = fullShortUrl;
-                shortLinkEl.textContent = fullShortUrl;
-                resultSection.classList.remove('hidden');
-                showMessage(`Successfully created link!`, 'success');
-                createLinkForm.reset();
-            } catch (error) {
-                console.error('Error creating link:', error);
-                showMessage(error.message, 'error');
-            } finally {
-                setLoading(false);
             }
-        }
+            
+            async function signIn() {
+                 try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Authentication failed:", error);
+                    showMessage(error.message, "error");
+                }
+            }
 
-        async function handleDeleteLink(e) {
-             if (e.target.closest('.delete-btn')) {
-                const button = e.target.closest('.delete-btn');
-                const slug = button.dataset.slug;
+            async function setupRealtimeListeners() {
+                if (!currentUserId) return;
                 
-                if (window.confirm(`Are you sure you want to delete the link for "${slug}"? This action cannot be undone.`)) {
-                    try {
-                        const docPath = `/artifacts/${appId}/users/${currentUserId}/redirects/${slug}`;
-                        await deleteDoc(doc(db, docPath));
-                        showMessage(`Link "${slug}" deleted successfully.`, 'success');
-                    } catch (error) {
-                        console.error("Error deleting link:", error);
-                        showMessage("Failed to delete the link.", "error");
+                const linksCollectionPath = `/artifacts/${appId}/users/${currentUserId}/redirects`;
+                onSnapshot(collection(db, linksCollectionPath), (snapshot) => {
+                    linksLoader.classList.add('hidden');
+                    noLinksMsg.classList.toggle('hidden', !snapshot.empty);
+                    displayLinks(snapshot.docs);
+                }, (error) => {
+                    console.error("Error fetching links:", error);
+                    showMessage("Could not load your links.", "error");
+                });
+
+                const logsCollectionPath = `/artifacts/${appId}/users/${currentUserId}/logs`;
+                const logsQuery = query(collection(db, logsCollectionPath), orderBy('timestamp', 'desc'));
+
+                if (logsUnsubscribe) logsUnsubscribe(); 
+                
+                logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
+                    logsLoader.classList.add('hidden');
+                    noLogsMsg.classList.toggle('hidden', !snapshot.empty);
+                    displayLogs(snapshot.docs);
+                }, (error) => {
+                    console.error("Error fetching logs:", error);
+                    showMessage("Could not load analytics data.", "error");
+                });
+            }
+
+            function displayLinks(docs) {
+                const docMap = new Map(docs.map(doc => [doc.id, doc.data()]));
+                const linkItems = linksContainer.querySelectorAll('.link-item');
+
+                linkItems.forEach(item => {
+                    if (!docMap.has(item.dataset.slug)) item.remove();
+                });
+
+                docMap.forEach((data, slug) => {
+                    let linkItem = linksContainer.querySelector(`.link-item[data-slug="${slug}"]`);
+                    if (!linkItem) {
+                        linkItem = document.createElement('div');
+                        linkItem.className = 'link-item flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm';
+                        linkItem.dataset.slug = slug;
+                        linksContainer.appendChild(linkItem);
+                    }
+                    const shortUrl = `${window.location.origin}/${slug}`;
+                    linkItem.innerHTML = `
+                        <div class="flex-grow overflow-hidden mr-4">
+                            <a href="${shortUrl}" target="_blank" class="font-semibold text-indigo-700 truncate hover:underline">${shortUrl}</a>
+                            <p class="text-sm text-gray-500 truncate" title="${data.longUrl}">${data.longUrl}</p>
+                        </div>
+                        <div class="flex-shrink-0 flex items-center space-x-2">
+                            <span class="text-sm font-medium text-gray-600">${data.clickCount || 0} Clicks</span>
+                            <button class="delete-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition" data-slug="${slug}">
+                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                });
+            }
+
+            function displayLogs(docs) {
+                logsContainer.innerHTML = '';
+                if (docs.length === 0) return;
+
+                docs.forEach(doc => {
+                    const logData = doc.data();
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50";
+                    
+                    const formattedDate = new Date(logData.timestamp).toLocaleString();
+
+                    tr.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>/${logData.slug}</td>
+                        <td>${logData.geolocation?.country || 'N/A'}</td>
+                        <td class="truncate max-w-xs">${logData.referrer || 'Direct'}</td>
+                        <td>
+                            <button class="view-log-details-btn text-indigo-600 hover:text-indigo-900 font-medium" data-log-id="${doc.id}">
+                                View
+                            </button>
+                        </td>
+                    `;
+                    tr.querySelector('.view-log-details-btn')._logData = logData;
+                    logsContainer.appendChild(tr);
+                });
+            }
+
+            async function handleCreateLink(e) {
+                e.preventDefault();
+                setLoading(true);
+
+                const longUrl = longUrlInput.value;
+                const customSlug = customSlugInput.value.trim();
+
+                try {
+                    const response = await fetch('/.netlify/functions/create-link', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ longUrl, customSlug, userId: currentUserId, appId }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'An error occurred.');
+
+                    const fullShortUrl = `${window.location.origin}/${data.slug}`;
+                    shortLinkEl.href = fullShortUrl;
+                    shortLinkEl.textContent = fullShortUrl;
+                    resultSection.classList.remove('hidden');
+                    showMessage(`Successfully created link!`, 'success');
+                    createLinkForm.reset();
+                } catch (error) {
+                    console.error('Error creating link:', error);
+                    showMessage(error.message, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            async function handleDeleteLink(e) {
+                 if (e.target.closest('.delete-btn')) {
+                    const button = e.target.closest('.delete-btn');
+                    const slug = button.dataset.slug;
+                    
+                    if (window.confirm(`Are you sure you want to delete the link for "${slug}"? This action cannot be undone.`)) {
+                        try {
+                            const docPath = `/artifacts/${appId}/users/${currentUserId}/redirects/${slug}`;
+                            await deleteDoc(doc(db, docPath));
+                            showMessage(`Link "${slug}" deleted successfully.`, 'success');
+                        } catch (error) {
+                            console.error("Error deleting link:", error);
+                            showMessage("Failed to delete the link.", "error");
+                        }
                     }
                 }
             }
-        }
-        
-        function toggleView(view) {
-            if (view === 'analytics') {
-                linksView.classList.add('hidden');
-                analyticsView.classList.remove('hidden');
-                showLinksBtn.classList.remove('border-indigo-500', 'text-indigo-600');
-                showAnalyticsBtn.classList.add('border-indigo-500', 'text-indigo-600');
-            } else {
-                analyticsView.classList.add('hidden');
-                linksView.classList.remove('hidden');
-                showAnalyticsBtn.classList.remove('border-indigo-500', 'text-indigo-600');
-                showLinksBtn.classList.add('border-indigo-500', 'text-indigo-600');
+            
+            function toggleView(view) {
+                if (view === 'analytics') {
+                    linksView.classList.add('hidden');
+                    analyticsView.classList.remove('hidden');
+                    showLinksBtn.classList.remove('border-indigo-500', 'text-indigo-600');
+                    showAnalyticsBtn.classList.add('border-indigo-500', 'text-indigo-600');
+                } else {
+                    analyticsView.classList.add('hidden');
+                    linksView.classList.remove('hidden');
+                    showAnalyticsBtn.classList.remove('border-indigo-500', 'text-indigo-600');
+                    showLinksBtn.classList.add('border-indigo-500', 'text-indigo-600');
+                }
             }
-        }
 
-        function openLogModal(logData) {
-            logDetailsContent.textContent = JSON.stringify(logData, null, 2);
-            logModal.classList.remove('hidden');
-            setTimeout(() => {
-                modalOverlay.classList.remove('opacity-0');
-                document.getElementById('modal-content').classList.remove('scale-95');
-            }, 10);
-        }
-
-        function closeLogModal() {
-            modalOverlay.classList.add('opacity-0');
-            document.getElementById('modal-content').classList.add('scale-95');
-            setTimeout(() => {
-                logModal.classList.add('hidden');
-            }, 300);
-        }
-
-        function copyToClipboard() {
-            const textToCopy = shortLinkEl.href;
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                copyFeedback.textContent = 'Copied!';
-                setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
-            } catch (err) {
-                copyFeedback.textContent = 'Failed to copy!';
-                setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+            function openLogModal(logData) {
+                logDetailsContent.textContent = JSON.stringify(logData, null, 2);
+                logModal.classList.remove('hidden');
+                setTimeout(() => {
+                    modalOverlay.classList.remove('opacity-0');
+                    document.getElementById('modal-content').classList.remove('scale-95');
+                }, 10);
             }
-            document.body.removeChild(textArea);
-        }
 
-        function setLoading(isLoading) {
-            if (isLoading) {
-                submitBtn.disabled = true;
-                btnText.classList.add('hidden');
-                btnLoader.classList.remove('hidden');
-            } else {
-                submitBtn.disabled = false;
-                btnText.classList.remove('hidden');
-                btnLoader.classList.add('hidden');
+            function closeLogModal() {
+                modalOverlay.classList.add('opacity-0');
+                document.getElementById('modal-content').classList.add('scale-95');
+                setTimeout(() => {
+                    logModal.classList.add('hidden');
+                }, 300);
             }
-        }
 
-        function showMessage(message, type = 'info') {
-            messageBox.textContent = message;
-            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
-            if (type === 'error') {
-                messageBox.classList.add('bg-red-100', 'text-red-700');
-            } else if (type === 'success') {
-                messageBox.classList.add('bg-green-100', 'text-green-700');
+            function copyToClipboard() {
+                const textToCopy = shortLinkEl.href;
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    copyFeedback.textContent = 'Copied!';
+                    setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+                } catch (err) {
+                    copyFeedback.textContent = 'Failed to copy!';
+                    setTimeout(() => { copyFeedback.textContent = ''; }, 2000);
+                }
+                document.body.removeChild(textArea);
             }
-            setTimeout(() => {
-                messageBox.classList.add('hidden');
-            }, 5000);
-        }
 
-        // --- Event Listeners ---
-        createLinkForm.addEventListener('submit', handleCreateLink);
-        copyBtn.addEventListener('click', copyToClipboard);
-        linksContainer.addEventListener('click', handleDeleteLink);
-        showLinksBtn.addEventListener('click', () => toggleView('links'));
-        showAnalyticsBtn.addEventListener('click', () => toggleView('analytics'));
-        
-        logsContainer.addEventListener('click', (e) => {
-            const button = e.target.closest('.view-log-details-btn');
-            if (button) {
-                openLogModal(button._logData);
+            function setLoading(isLoading) {
+                if (isLoading) {
+                    submitBtn.disabled = true;
+                    btnText.classList.add('hidden');
+                    btnLoader.classList.remove('hidden');
+                } else {
+                    submitBtn.disabled = false;
+                    btnText.classList.remove('hidden');
+                    btnLoader.classList.add('hidden');
+                }
             }
-        });
 
-        closeModalBtn.addEventListener('click', closeLogModal);
-        modalOverlay.addEventListener('click', closeLogModal);
-        
-        // --- Initial Load ---
-        document.addEventListener('DOMContentLoaded', () => {
+            function showMessage(message, type = 'info') {
+                messageBox.textContent = message;
+                messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+                if (type === 'error') {
+                    messageBox.classList.add('bg-red-100', 'text-red-700');
+                } else if (type === 'success') {
+                    messageBox.classList.add('bg-green-100', 'text-green-700');
+                }
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 5000);
+            }
+
+            // --- Event Listeners ---
+            createLinkForm.addEventListener('submit', handleCreateLink);
+            copyBtn.addEventListener('click', copyToClipboard);
+            linksContainer.addEventListener('click', handleDeleteLink);
+            showLinksBtn.addEventListener('click', () => toggleView('links'));
+            showAnalyticsBtn.addEventListener('click', () => toggleView('analytics'));
+            
+            logsContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('.view-log-details-btn');
+                if (button) {
+                    openLogModal(button._logData);
+                }
+            });
+
+            closeModalBtn.addEventListener('click', closeLogModal);
+            modalOverlay.addEventListener('click', closeLogModal);
+            
+            // --- Initial Load ---
             baseUrlSpan.textContent = `${window.location.hostname}/`;
             initializeFirebase();
         });
