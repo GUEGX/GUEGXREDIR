@@ -9,6 +9,7 @@ if (!admin.apps.length) {
     credential: admin.credential.cert(serviceAccount)
   });
 }
+
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
