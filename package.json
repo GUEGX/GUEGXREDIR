@@ -2,6 +2,7 @@
   "name": "netlify-url-redirector",
   "version": "1.0.0",
   "dependencies": {
+    "@netlify/neon": "^0.1.0",
     "firebase-admin": "^12.0.0",
     "nanoid": "^3.3.4"
   }
