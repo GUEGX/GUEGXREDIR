@@ -21,7 +21,23 @@
 </head>
 <body class="gradient-bg min-h-screen flex items-center justify-center p-4">
 
-    <div class="w-full max-w-4xl mx-auto">
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[100] bg-gray-900 bg-opacity-90 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Restricted Access</h2>
+            <p class="text-gray-500 mb-6">Please enter the password to manage links.</p>
+            <form id="login-form" class="space-y-4">
+                <input type="password" id="password-input" placeholder="Password" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow">
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    Login
+                </button>
+                <p id="login-error" class="text-red-500 text-sm hidden">Incorrect password.</p>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" class="w-full max-w-4xl mx-auto transition-opacity duration-500 opacity-0 filter blur-sm" aria-hidden="true">
         <div class="card rounded-2xl shadow-2xl p-6 md:p-10">
             <div class="text-center mb-8">
                 <h1 class="text-3xl md:text-4xl font-bold text-gray-800">URL Redirector</h1>
@@ -542,6 +558,54 @@
             closeModalBtn.addEventListener('click', closeLogModal);
             modalOverlay.addEventListener('click', closeLogModal);
             
+            // --- Simple Authentication Logic ---
+            const loginOverlay = document.getElementById('login-overlay');
+            const appContainer = document.getElementById('app-container');
+            const loginForm = document.getElementById('login-form');
+            const passwordInput = document.getElementById('password-input');
+            const loginError = document.getElementById('login-error');
+
+            // SHA-256 Hash of 'admin'
+            const PASSWORD_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+
+            async function hashString(str) {
+                const msgBuffer = new TextEncoder().encode(str);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            async function checkSession() {
+                const storedHash = sessionStorage.getItem('auth_hash');
+                if (storedHash === PASSWORD_HASH) {
+                    showApp();
+                }
+            }
+
+            function showApp() {
+                loginOverlay.classList.add('hidden');
+                appContainer.classList.remove('opacity-0', 'blur-sm');
+                appContainer.removeAttribute('aria-hidden');
+            }
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const input = passwordInput.value;
+                const hash = await hashString(input);
+                
+                if (hash === PASSWORD_HASH) {
+                    sessionStorage.setItem('auth_hash', hash);
+                    showApp();
+                    loginError.classList.add('hidden');
+                } else {
+                    loginError.classList.remove('hidden');
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+            });
+
+            checkSession();
+
             // --- Initial Load ---
             baseUrlSpan.textContent = `${window.location.hostname}/`;
             initializeFirebase();
