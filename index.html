@@ -75,6 +75,33 @@
                                           pattern="[a-zA-Z0-9-]+" title="Only letters, numbers, and hyphens are allowed.">
                                 </div>
                             </div>
+
+                            <!-- Social Media Preview Section -->
+                            <div class="pt-2">
+                                <button type="button" id="toggle-social-btn" class="flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none">
+                                    <svg class="w-4 h-4 mr-1 transition-transform duration-200" id="social-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                    Customize Social Preview (OG Tags)
+                                </button>
+                                <div id="social-section" class="hidden mt-3 space-y-3 pl-2 border-l-2 border-indigo-100">
+                                    <div>
+                                        <label for="ogTitle" class="block text-xs font-medium text-gray-500 mb-1">Title</label>
+                                        <input type="text" id="ogTitle" placeholder="My Awesome Link"
+                                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none input-focus">
+                                    </div>
+                                    <div>
+                                        <label for="ogDescription" class="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                                        <input type="text" id="ogDescription" placeholder="Click to see more..."
+                                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none input-focus">
+                                    </div>
+                                    <div>
+                                        <label for="ogImage" class="block text-xs font-medium text-gray-500 mb-1">Image URL</label>
+                                        <input type="url" id="ogImage" placeholder="https://example.com/image.jpg"
+                                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none input-focus">
+                                        <p class="text-[10px] text-gray-400 mt-1">Use a large image (1200x630) for best results on Twitter/X.</p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <button type="submit" id="submit-btn" class="w-full btn-primary text-white font-semibold py-2.5 px-4 rounded-lg shadow-md">
                                 <span id="btn-text">Shorten URL</span>
                                 <span id="btn-loader" class="hidden">
@@ -222,6 +249,12 @@
             const createLinkForm = document.getElementById('create-link-form');
             const longUrlInput = document.getElementById('longUrl');
             const customSlugInput = document.getElementById('customSlug');
+            const ogTitleInput = document.getElementById('ogTitle');
+            const ogDescriptionInput = document.getElementById('ogDescription');
+            const ogImageInput = document.getElementById('ogImage');
+            const toggleSocialBtn = document.getElementById('toggle-social-btn');
+            const socialSection = document.getElementById('social-section');
+            const socialArrow = document.getElementById('social-arrow');
             const submitBtn = document.getElementById('submit-btn');
             const btnText = document.getElementById('btn-text');
             const btnLoader = document.getElementById('btn-loader');
@@ -392,12 +425,23 @@
 
                 const longUrl = longUrlInput.value;
                 const customSlug = customSlugInput.value.trim();
+                const ogTitle = ogTitleInput.value.trim();
+                const ogDescription = ogDescriptionInput.value.trim();
+                const ogImage = ogImageInput.value.trim();
 
                 try {
                     const response = await fetch('/.netlify/functions/create-link', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ longUrl, customSlug, userId: currentUserId, appId }),
+                        body: JSON.stringify({ 
+                            longUrl, 
+                            customSlug, 
+                            userId: currentUserId, 
+                            appId,
+                            ogTitle,
+                            ogDescription,
+                            ogImage
+                        }),
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'An error occurred.');
@@ -542,6 +586,11 @@
             }
 
             // --- Event Listeners ---
+            toggleSocialBtn.addEventListener('click', () => {
+                socialSection.classList.toggle('hidden');
+                socialArrow.classList.toggle('rotate-90');
+            });
+
             createLinkForm.addEventListener('submit', handleCreateLink);
             copyBtn.addEventListener('click', copyToClipboard);
             linksContainer.addEventListener('click', handleDeleteLink);

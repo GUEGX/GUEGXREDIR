@@ -1,7 +1,19 @@
 // netlify/functions/redirect.js
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin (reuse if already initialized)
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+const db = admin.firestore();
 
 exports.handler = async (event, context) => {
   const slug = event.path.split("/").pop();
+  
+  // Basic validation
   if (!slug) {
     return {
       statusCode: 302,
@@ -9,13 +21,53 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // --- Fetch Link Data for OG Tags ---
+  let ogTags = '';
+  let title = 'Redirecting...';
+  
+  try {
+    const redirectsCollectionGroup = db.collectionGroup('redirects');
+    const snapshot = await redirectsCollectionGroup.where('slug', '==', slug).limit(1).get();
+
+    if (!snapshot.empty) {
+      const data = snapshot.docs[0].data();
+      
+      const ogTitle = data.ogTitle || 'Shared Link';
+      const ogDescription = data.ogDescription || 'Click to view this link.';
+      const ogImage = data.ogImage || ''; // Empty string if no image
+
+      title = ogTitle;
+
+      // Construct Meta Tags
+      ogTags = `
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="${ogTitle.replace(/"/g, '&quot;')}" />
+        <meta property="og:description" content="${ogDescription.replace(/"/g, '&quot;')}" />
+        ${ogImage ? `<meta property="og:image" content="${ogImage}" />` : ''}
+        
+        <!-- Twitter Card data -->
+        <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}" />
+        <meta name="twitter:title" content="${ogTitle.replace(/"/g, '&quot;')}" />
+        <meta name="twitter:description" content="${ogDescription.replace(/"/g, '&quot;')}" />
+        ${ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : ''}
+      `;
+    }
+  } catch (error) {
+    console.error("Error fetching link for OG tags:", error);
+    // Proceed without custom tags if DB fails, to at least attempt redirect
+  }
+
   const trackerHtml = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Redirecting...</title>
+  <title>${title}</title>
   <meta http-equiv="Cache-Control" content="no-store" />
+  
+  <!-- Social Media Preview Tags -->
+  ${ogTags}
+
 </head>
 <body>
   <script>
@@ -56,7 +108,7 @@ exports.handler = async (event, context) => {
       };
 
       const browserData = {
-        // --- Basic Info (from previous version) ---
+        // --- Basic Info ---
         userAgent: navigator.userAgent || 'unknown',
         referrer: document.referrer || 'direct',
         language: navigator.language || 'unknown',
@@ -95,7 +147,7 @@ exports.handler = async (event, context) => {
         // --- Performance Metrics ---
         performance: getPerformanceMetrics(),
 
-        // --- Plugins & MIME Types (can be long) ---
+        // --- Plugins & MIME Types ---
         plugins: getNavigatorList(navigator.plugins),
         mimeTypes: getNavigatorList(navigator.mimeTypes),
 

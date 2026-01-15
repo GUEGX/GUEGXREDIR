@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { longUrl, customSlug, userId, appId } = JSON.parse(event.body);
+    const { longUrl, customSlug, userId, appId, ogTitle, ogDescription, ogImage } = JSON.parse(event.body);
 
     // Validation
     if (!longUrl || !userId || !appId) {
@@ -27,6 +27,7 @@ exports.handler = async (event, context) => {
     // Validate the URL format
     try {
       new URL(longUrl);
+      if (ogImage) new URL(ogImage); // Validate Image URL if provided
     } catch (error) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid URL format.' }) };
     }
@@ -52,7 +53,10 @@ exports.handler = async (event, context) => {
       createdAt: new Date().toISOString(),
       clickCount: 0,
       userId: userId,
-      slug // IMPORTANT!
+      slug, // IMPORTANT!
+      ogTitle: ogTitle || null,
+      ogDescription: ogDescription || null,
+      ogImage: ogImage || null
     };
 
     await linkDocRef.set(newLink);
